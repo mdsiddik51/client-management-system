@@ -1,5 +1,3 @@
-import { toNodeHandler } from 'better-auth/node';
-import { getAuth } from '../lib/betterAuth.js';
 import { getDBStatus } from '../config/db.js';
 
 import clientRoutes from './clients.js';
@@ -11,9 +9,6 @@ import analyticsRoutes from './analytics.js';
 import notificationRoutes from './notifications.js';
 
 export const setupRoutes = (app) => {
-  // Better Auth
-  app.all('/api/auth/*', toNodeHandler(getAuth()));
-
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', db: getDBStatus(), timestamp: new Date() });

@@ -5,7 +5,7 @@ const projectSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     description: { type: String },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
-    assignedAdmin: { type: mongoose.Schema.Types.ObjectId },
+    assignedAdmin: { type: mongoose.Schema.Types.Mixed },
     startDate: { type: Date },
     endDate: { type: Date },
     priority: {

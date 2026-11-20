@@ -24,8 +24,8 @@ const clientSchema = new mongoose.Schema(
       default: 'Lead',
     },
     notes: { type: String },
-    assignedAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    userId: { type: mongoose.Schema.Types.ObjectId },
+    assignedAdmin: { type: mongoose.Schema.Types.Mixed, ref: 'User' },
+    userId: { type: mongoose.Schema.Types.Mixed },
   },
   { timestamps: true }
 );

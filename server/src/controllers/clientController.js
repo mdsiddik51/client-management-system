@@ -15,7 +15,15 @@ const logActivity = async (type, userId, targetId, description, metadata = {}) =
 // GET /api/clients
 export const getClients = async (req, res, next) => {
   try {
-    const filter = req.user.role === 'CLIENT' ? { userId: req.user.id } : {};
+    const filter =
+      req.user.role === 'CLIENT'
+        ? {
+            $or: [
+              { userId: req.user.id },
+              ...(req.user.email ? [{ email: req.user.email.toLowerCase() }] : []),
+            ],
+          }
+        : {};
     if (req.query.status) {
       filter.status = req.query.status;
     }
@@ -48,8 +56,13 @@ export const getClient = async (req, res, next) => {
     const client = await Client.findById(req.params.id);
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    if (req.user.role === 'CLIENT' && String(client.userId) !== String(req.user.id)) {
-      return errorResponse(res, 'Forbidden', 403);
+    if (req.user.role === 'CLIENT') {
+      const isOwner =
+        String(client.userId) === String(req.user.id) ||
+        (req.user.email && client.email?.toLowerCase() === req.user.email.toLowerCase());
+      if (!isOwner) {
+        return errorResponse(res, 'Forbidden', 403);
+      }
     }
 
     return successResponse(res, client);
@@ -75,11 +88,26 @@ export const updateClient = async (req, res, next) => {
     const client = await Client.findById(req.params.id);
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    if (req.user.role === 'CLIENT' && String(client.userId) !== String(req.user.id)) {
-      return errorResponse(res, 'Forbidden', 403);
+    let updateData = req.body;
+
+    if (req.user.role === 'CLIENT') {
+      const isOwner =
+        String(client.userId) === String(req.user.id) ||
+        (req.user.email && client.email?.toLowerCase() === req.user.email.toLowerCase());
+      if (!isOwner) {
+        return errorResponse(res, 'Forbidden', 403);
+      }
+      // Restrict client updates to non-sensitive profile fields
+      const { fullName, phone, company, address, profileImage } = req.body;
+      updateData = {};
+      if (fullName !== undefined) updateData.fullName = fullName;
+      if (phone !== undefined) updateData.phone = phone;
+      if (company !== undefined) updateData.company = company;
+      if (address !== undefined) updateData.address = address;
+      if (profileImage !== undefined) updateData.profileImage = profileImage;
     }
 
-    const updated = await Client.findByIdAndUpdate(req.params.id, req.body, {
+    const updated = await Client.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     });

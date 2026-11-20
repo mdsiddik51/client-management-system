@@ -1,5 +1,6 @@
 import Project from '../models/Project.js';
 import Client from '../models/Client.js';
+import Task from '../models/Task.js';
 import Activity from '../models/Activity.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
@@ -14,7 +15,14 @@ export const getProjects = async (req, res, next) => {
   try {
     let filter = {};
     if (req.user.role === 'CLIENT') {
-      const clientRecord = await Client.findOne({ userId: req.user.id });
+      let clientRecord = await Client.findOne({ userId: req.user.id });
+      if (!clientRecord && req.user.email) {
+        clientRecord = await Client.findOne({ email: req.user.email.toLowerCase() });
+        if (clientRecord && !clientRecord.userId) {
+          clientRecord.userId = req.user.id;
+          await clientRecord.save().catch(() => {});
+        }
+      }
       if (!clientRecord) return successResponse(res, [], 'No projects found', 200, { total: 0 });
       filter.client = clientRecord._id;
     } else if (req.query.client) {
@@ -51,8 +59,13 @@ export const getProject = async (req, res, next) => {
     const project = await Project.findById(req.params.id).populate('client', 'fullName email userId');
     if (!project) return errorResponse(res, 'Project not found', 404);
 
-    if (req.user.role === 'CLIENT' && String(project.client?.userId) !== String(req.user.id)) {
-      return errorResponse(res, 'Forbidden', 403);
+    if (req.user.role === 'CLIENT') {
+      const isOwner =
+        String(project.client?.userId) === String(req.user.id) ||
+        (req.user.email && project.client?.email?.toLowerCase() === req.user.email.toLowerCase());
+      if (!isOwner) {
+        return errorResponse(res, 'Forbidden', 403);
+      }
     }
 
     return successResponse(res, project);
@@ -96,6 +109,7 @@ export const deleteProject = async (req, res, next) => {
     if (!project) return errorResponse(res, 'Project not found', 404);
 
     await Project.findByIdAndDelete(req.params.id);
+    await Task.deleteMany({ project: req.params.id });
     await logActivity('project_deleted', req.user.id, project._id, `Project ${project.title} deleted`);
     return successResponse(res, null, 'Project deleted');
   } catch (err) {

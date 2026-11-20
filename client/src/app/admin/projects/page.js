@@ -29,8 +29,18 @@ export default function ProjectsPage() {
   const projects = response?.data || [];
 
   // Fetch clients for dropdown selector
-  const { data: clientsRes } = useApi('/api/clients');
+  const { data: clientsRes, refetch: refetchClients } = useApi('/api/clients');
   const clients = clientsRes?.data || [];
+
+  // Quick client creation state
+  const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
+  const [quickClientSubmitting, setQuickClientSubmitting] = useState(false);
+  const [quickClientData, setQuickClientData] = useState({
+    fullName: '',
+    email: '',
+    company: '',
+    status: 'Active',
+  });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -94,6 +104,31 @@ export default function ProjectsPage() {
       toastError('Operation Failed', err.message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickClientSubmit = async (e) => {
+    e.preventDefault();
+    if (!quickClientData.fullName || !quickClientData.email) {
+      toastError('Validation', 'Client full name and email are required.');
+      return;
+    }
+    setQuickClientSubmitting(true);
+    try {
+      const { data: newClientRes, error } = await api.post('/api/clients', quickClientData);
+      if (error) throw new Error(error);
+      const createdClient = newClientRes?.data || newClientRes;
+      toastSuccess('Client Added', `${quickClientData.fullName} was created and selected.`);
+      await refetchClients();
+      if (createdClient?._id) {
+        setFormData((prev) => ({ ...prev, client: createdClient._id }));
+      }
+      setIsQuickClientOpen(false);
+      setQuickClientData({ fullName: '', email: '', company: '', status: 'Active' });
+    } catch (err) {
+      toastError('Failed to create client', err.message);
+    } finally {
+      setQuickClientSubmitting(false);
     }
   };
 
@@ -249,9 +284,18 @@ export default function ProjectsPage() {
           />
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-              Client *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Client *
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsQuickClientOpen(true)}
+                className="text-xs text-[#0A84FF] hover:underline flex items-center gap-1 font-medium"
+              >
+                <Plus className="w-3 h-3" /> Add New Client
+              </button>
+            </div>
             <select
               required
               value={formData.client}
@@ -335,6 +379,71 @@ export default function ProjectsPage() {
             </Button>
             <Button type="submit" loading={isSubmitting}>
               {editingProject ? 'Save Changes' : 'Create Project'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Quick Add Client Modal */}
+      <Modal
+        isOpen={isQuickClientOpen}
+        onClose={() => setIsQuickClientOpen(false)}
+        title="Add New Client"
+      >
+        <form onSubmit={handleQuickClientSubmit} className="space-y-4">
+          <Input
+            label="Full Name *"
+            required
+            value={quickClientData.fullName}
+            onChange={(e) =>
+              setQuickClientData({ ...quickClientData, fullName: e.target.value })
+            }
+            placeholder="Jane Doe"
+          />
+          <Input
+            label="Email Address *"
+            type="email"
+            required
+            value={quickClientData.email}
+            onChange={(e) =>
+              setQuickClientData({ ...quickClientData, email: e.target.value })
+            }
+            placeholder="jane@company.com"
+          />
+          <Input
+            label="Company"
+            value={quickClientData.company}
+            onChange={(e) =>
+              setQuickClientData({ ...quickClientData, company: e.target.value })
+            }
+            placeholder="Acme Corp"
+          />
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              Status
+            </label>
+            <select
+              value={quickClientData.status}
+              onChange={(e) =>
+                setQuickClientData({ ...quickClientData, status: e.target.value })
+              }
+              className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="Active">Active</option>
+              <option value="Lead">Lead</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setIsQuickClientOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={quickClientSubmitting}>
+              Save & Select Client
             </Button>
           </div>
         </form>

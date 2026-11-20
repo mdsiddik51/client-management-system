@@ -8,9 +8,14 @@ export function middleware(request) {
 
   const isAuthenticated = !!sessionCookie;
 
-  // If authenticated user hits auth pages, redirect them
+  // If authenticated user hits auth pages, redirect them to the appropriate dashboard.
+  // Role is not available in edge middleware, so we redirect to a neutral entry point
+  // that the admin/client layouts will re-route from based on session role.
   if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/client/dashboard', request.url));
+    // Prefer the 'from' param if provided; otherwise default to client dashboard
+    // (the client layout will redirect ADMINs to /admin/dashboard on the client side).
+    const from = request.nextUrl.searchParams.get('from');
+    return NextResponse.redirect(new URL(from || '/client/dashboard', request.url));
   }
 
   // Protect admin routes

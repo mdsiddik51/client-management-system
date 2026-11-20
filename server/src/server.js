@@ -5,6 +5,8 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 
+import { toNodeHandler } from 'better-auth/node';
+import { getAuth } from './lib/betterAuth.js';
 import { config } from './config/index.js';
 import { connectDB } from './config/db.js';
 import { setupRoutes } from './routes/index.js';
@@ -22,10 +24,6 @@ app.use(
   })
 );
 app.use(morgan('dev'));
-
-// Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Rate limiting on /api/
@@ -38,7 +36,24 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Routes (includes Better Auth and all feature routes)
+// Better Auth MUST be mounted BEFORE express.json() / express.urlencoded()
+// to prevent the body-parser from consuming the incoming request stream
+app.all('/api/auth/*', (req, res) => {
+  const auth = getAuth();
+  if (!auth) {
+    return res.status(503).json({
+      success: false,
+      message: 'Auth service unavailable – MongoDB is not connected yet.',
+    });
+  }
+  return toNodeHandler(auth)(req, res);
+});
+
+// Body parsers (for custom REST application routes)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Routes (includes all feature routes)
 setupRoutes(app);
 
 // Global error handler (must be last)

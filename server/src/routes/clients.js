@@ -24,7 +24,7 @@ router.post('/', authorize('ADMIN'), createClient);
 
 // Single record
 router.get('/:id', getClient);
-router.put('/:id', authorize('ADMIN'), updateClient);
+router.put('/:id', updateClient);
 router.delete('/:id', authorize('ADMIN'), deleteClient);
 
 export default router;

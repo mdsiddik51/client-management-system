@@ -22,6 +22,16 @@ const errorHandler = (err, req, res, next) => {
     return errorResponse(res, `Duplicate value for ${field}`, 409);
   }
 
+  // Multer upload errors
+  if (err.name === 'MulterError') {
+    return errorResponse(res, `Upload error: ${err.message}`, 400);
+  }
+
+  // File filter errors
+  if (err.message === 'Only image files are allowed') {
+    return errorResponse(res, err.message, 400);
+  }
+
   // Generic
   const statusCode = err.statusCode || err.status || 500;
   return errorResponse(res, err.message || 'Internal server error', statusCode);

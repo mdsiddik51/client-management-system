@@ -11,8 +11,15 @@ const logActivity = async (type, userId, targetId, description, metadata = {}) =
 };
 
 // Resolve project IDs for CLIENT role
-const getClientProjectIds = async (userId) => {
-  const clientRecord = await Client.findOne({ userId });
+const getClientProjectIds = async (user) => {
+  let clientRecord = await Client.findOne({ userId: user.id });
+  if (!clientRecord && user.email) {
+    clientRecord = await Client.findOne({ email: user.email.toLowerCase() });
+    if (clientRecord && !clientRecord.userId) {
+      clientRecord.userId = user.id;
+      await clientRecord.save().catch(() => {});
+    }
+  }
   if (!clientRecord) return [];
   const projects = await Project.find({ client: clientRecord._id }, '_id');
   return projects.map((p) => p._id);
@@ -23,7 +30,7 @@ export const getTasks = async (req, res, next) => {
   try {
     let filter = {};
     if (req.user.role === 'CLIENT') {
-      const projectIds = await getClientProjectIds(req.user.id);
+      const projectIds = await getClientProjectIds(req.user);
       filter.project = { $in: projectIds };
     } else if (req.query.project) {
       filter.project = req.query.project;
@@ -60,8 +67,9 @@ export const getTask = async (req, res, next) => {
     if (!task) return errorResponse(res, 'Task not found', 404);
 
     if (req.user.role === 'CLIENT') {
-      const projectIds = await getClientProjectIds(req.user.id);
-      if (!projectIds.some((id) => String(id) === String(task.project._id))) {
+      const projectIds = await getClientProjectIds(req.user);
+      // Guard: task.project may be null if the referenced project was deleted
+      if (!task.project || !projectIds.some((id) => String(id) === String(task.project._id))) {
         return errorResponse(res, 'Forbidden', 403);
       }
     }
@@ -89,6 +97,23 @@ export const updateTask = async (req, res, next) => {
     const task = await Task.findById(req.params.id);
     if (!task) return errorResponse(res, 'Task not found', 404);
 
+    if (req.user.role === 'CLIENT') {
+      const projectIds = await getClientProjectIds(req.user);
+      if (!projectIds.some((id) => String(id) === String(task.project))) {
+        return errorResponse(res, 'Forbidden – deliverable does not belong to your projects', 403);
+      }
+      // Clients may only toggle or update status
+      const { status } = req.body;
+      if (!status) {
+        return errorResponse(res, 'Only status can be updated by client', 400);
+      }
+      task.status = status;
+      await task.save();
+      await logActivity('task_updated', req.user.id, task._id, `Task status updated to ${status}`);
+      return successResponse(res, task, 'Task status updated');
+    }
+
+    // Admin can update all task fields
     const updated = await Task.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,

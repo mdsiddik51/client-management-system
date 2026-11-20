@@ -17,7 +17,7 @@ router.get('/', getTasks);
 router.post('/', authorize('ADMIN'), createTask);
 
 router.get('/:id', getTask);
-router.put('/:id', authorize('ADMIN'), updateTask);
+router.put('/:id', updateTask);
 router.delete('/:id', authorize('ADMIN'), deleteTask);
 
 export default router;
